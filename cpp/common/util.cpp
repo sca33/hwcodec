@@ -73,8 +73,12 @@ bool set_lantency_free(void *priv_data, const std::string &name) {
   }
   if (name.find("amf") != std::string::npos) {
     if ((ret = av_opt_set(priv_data, "query_timeout", "1000", 0)) < 0) {
-      LOG_ERROR(std::string("amf set_lantency_free failed, ret = ") + av_err2str(ret));
-      return false;
+      if (ret == AVERROR_OPTION_NOT_FOUND) {
+        LOG_WARN(std::string("amf query_timeout option is unavailable, continuing without it"));
+      } else {
+        LOG_ERROR(std::string("amf set_lantency_free failed, ret = ") + av_err2str(ret));
+        return false;
+      }
     }
   }
   if (name.find("qsv") != std::string::npos) {
