@@ -22,6 +22,16 @@ pub struct FeatureContext {
     pub data_format: DataFormat,
 }
 
+use crate::common::{Quality, RateControl};
+
+fn default_rc() -> RateControl {
+    RateControl::RC_DEFAULT
+}
+
+fn default_quality() -> Quality {
+    Quality::Quality_Default
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DynamicContext {
     #[serde(skip)]
@@ -31,6 +41,10 @@ pub struct DynamicContext {
     pub kbitrate: i32,
     pub framerate: i32,
     pub gop: i32,
+    #[serde(skip, default = "default_rc")]
+    pub rc: RateControl,
+    #[serde(skip, default = "default_quality")]
+    pub quality: Quality,
 }
 
 unsafe impl Send for DynamicContext {}

@@ -42,6 +42,8 @@ impl Encoder {
                 ctx.d.kbitrate,
                 ctx.d.framerate,
                 ctx.d.gop,
+                ctx.d.rc as i32,
+                ctx.d.quality as i32,
             );
             if codec.is_null() {
                 return Err(());

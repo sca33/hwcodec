@@ -338,7 +338,9 @@ int nv_destroy_encoder(void *encoder) {
 
 void *nv_new_encoder(void *handle, int64_t luid, DataFormat dataFormat,
                      int32_t width, int32_t height, int32_t kbs,
-                     int32_t framerate, int32_t gop) {
+                     int32_t framerate, int32_t gop,
+                     int32_t rc, int32_t quality) {
+  (void)rc; (void)quality; // TODO: implement rate control for NVENC
   NvencEncoder *e = NULL;
   try {
     e = new NvencEncoder(handle, luid, dataFormat, width, height, kbs,
@@ -406,7 +408,7 @@ int nv_test_encode(int64_t *outLuids, int32_t *outVendors, int32_t maxDescNum, i
 
       NvencEncoder *e = (NvencEncoder *)nv_new_encoder(
           (void *)adapter.get()->device_.Get(), currentLuid,
-          dataFormat, width, height, kbs, framerate, gop);
+          dataFormat, width, height, kbs, framerate, gop, RC_DEFAULT, Quality_Default);
       if (!e)
         continue;
       if (e->native_->EnsureTexture(e->width_, e->height_)) {
