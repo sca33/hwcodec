@@ -471,7 +471,9 @@ int amf_destroy_encoder(void *encoder) {
 
 void *amf_new_encoder(void *handle, int64_t luid,
                       DataFormat dataFormat, int32_t width, int32_t height,
-                      int32_t kbs, int32_t framerate, int32_t gop) {
+                      int32_t kbs, int32_t framerate, int32_t gop,
+                      int32_t rc, int32_t quality) {
+  (void)rc; (void)quality; // TODO: implement rate control for AMF
   AMFEncoder *enc = NULL;
   try {
     amf_wstring codecStr;
@@ -541,7 +543,7 @@ int amf_test_encode(int64_t *outLuids, int32_t *outVendors, int32_t maxDescNum, 
       
       AMFEncoder *e = (AMFEncoder *)amf_new_encoder(
           (void *)adapter.get()->device_.Get(), currentLuid,
-          dataFormat, width, height, kbs, framerate, gop);
+          dataFormat, width, height, kbs, framerate, gop, RC_DEFAULT, Quality_Default);
       if (!e)
         continue;
       if (e->test() == AMF_OK) {
