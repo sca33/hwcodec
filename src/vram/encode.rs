@@ -7,7 +7,10 @@ use crate::{
 };
 use log::trace;
 use std::{
-    fmt::Display, os::raw::{c_int, c_void}, slice::from_raw_parts
+    fmt::Display,
+    os::raw::{c_int, c_void},
+    slice::from_raw_parts,
+    sync::Arc,
 };
 
 pub struct Encoder {
@@ -79,7 +82,7 @@ impl Encoder {
         unsafe {
             let frames = &mut *(obj as *mut Vec<EncodeFrame>);
             frames.push(EncodeFrame {
-                data: from_raw_parts(data, size as usize).to_vec(),
+                data: Arc::from(from_raw_parts(data, size as usize)),
                 pts,
                 key,
             });
@@ -117,7 +120,7 @@ impl Drop for Encoder {
 }
 
 pub struct EncodeFrame {
-    pub data: Vec<u8>,
+    pub data: Arc<[u8]>,
     pub pts: i64,
     pub key: i32,
 }

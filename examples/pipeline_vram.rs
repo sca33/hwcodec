@@ -1,6 +1,6 @@
 use capture::dxgi;
 use env_logger::{init_from_env, Env, DEFAULT_FILTER_ENV};
-use hwcodec::common::{DataFormat, Driver, MAX_GOP};
+use hwcodec::common::{DataFormat, Driver, Quality, RateControl, MAX_GOP};
 use hwcodec::vram::{
     decode::Decoder, encode::Encoder, DecodeContext, DynamicContext, EncodeContext, FeatureContext,
 };
@@ -34,6 +34,8 @@ fn main() {
                 kbitrate: 5000,
                 framerate: 30,
                 gop: MAX_GOP as _,
+                rc: RateControl::RC_DEFAULT,
+                quality: Quality::Quality_Default,
             },
         };
         let de_ctx = DecodeContext {
@@ -51,7 +53,7 @@ fn main() {
         let mut dup_sum = Duration::ZERO;
         let mut enc_sum = Duration::ZERO;
         let mut dec_sum = Duration::ZERO;
-        let mut pts_instant = Instant::now();
+        let pts_instant = Instant::now();
         loop {
             let start = Instant::now();
             let texture = capturer.capture(100);
@@ -65,7 +67,7 @@ fn main() {
                 .unwrap();
             enc_sum += start.elapsed();
             for f in frame {
-                file.write_all(&mut f.data).unwrap();
+                file.write_all(&f.data).unwrap();
                 let start = Instant::now();
                 let frames = dec.decode(&f.data).unwrap();
                 dec_sum += start.elapsed();

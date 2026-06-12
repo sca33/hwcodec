@@ -27,7 +27,9 @@ fn main() {
 
     // system
     #[cfg(windows)]
-    ["d3d11", "dxgi"].map(|lib| println!("cargo:rustc-link-lib={}", lib));
+    for lib in ["d3d11", "dxgi"] {
+        println!("cargo:rustc-link-lib={}", lib);
+    }
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-lib=stdc++");
 

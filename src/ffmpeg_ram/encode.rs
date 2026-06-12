@@ -15,6 +15,7 @@ use std::{
     fmt::Display,
     os::raw::c_int,
     slice,
+    sync::Arc,
 };
 
 use super::Priority;
@@ -39,7 +40,7 @@ pub struct EncodeContext {
 }
 
 pub struct EncodeFrame {
-    pub data: Vec<u8>,
+    pub data: Arc<[u8]>,
     pub pts: i64,
     pub key: i32,
 }
@@ -134,7 +135,7 @@ impl Encoder {
         unsafe {
             let frames = &mut *(obj as *mut Vec<EncodeFrame>);
             frames.push(EncodeFrame {
-                data: slice::from_raw_parts(data, size as _).to_vec(),
+                data: Arc::from(slice::from_raw_parts(data, size as _)),
                 pts,
                 key,
             });
