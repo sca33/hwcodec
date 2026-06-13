@@ -319,6 +319,7 @@ private:
   int do_encode(EncodeCallback callback, const void *obj, int64_t ms) {
     int ret;
     bool encoded = false;
+    bool eagain = false;
     frame_->pts = ms;
     if ((ret = avcodec_send_frame(c_, frame_)) < 0) {
       LOG_ERROR(std::string("avcodec_send_frame failed, ret = ") + av_err2str(ret));
@@ -330,6 +331,10 @@ private:
       if ((ret = avcodec_receive_packet(c_, pkt_)) < 0) {
         if (ret != AVERROR(EAGAIN)) {
           LOG_ERROR(std::string("avcodec_receive_packet failed, ret = ") + av_err2str(ret));
+        } else {
+          // The frame was accepted but no packet is ready yet. This is the
+          // normal hardware-encoder pipeline delay, not a failure.
+          eagain = true;
         }
         goto _exit;
       }
@@ -344,7 +349,7 @@ private:
     }
   _exit:
     av_packet_unref(pkt_);
-    return encoded ? 0 : -1;
+    return encoded ? 0 : (eagain ? 0 : -1);
   }
 
   bool convert(void *texture) {
@@ -469,16 +474,18 @@ int ffmpeg_vram_encode(FFmpegVRamEncoder *encoder, void *texture,
   return -1;
 }
 
-void ffmpeg_vram_destroy_encoder(FFmpegVRamEncoder *encoder) {
+int ffmpeg_vram_destroy_encoder(FFmpegVRamEncoder *encoder) {
   try {
     if (!encoder)
-      return;
+      return 0;
     encoder->destroy();
     delete encoder;
     encoder = NULL;
+    return 0;
   } catch (const std::exception &e) {
     LOG_ERROR(std::string("free encoder failed, ") + std::string(e.what()));
   }
+  return -1;
 }
 
 int ffmpeg_vram_set_bitrate(FFmpegVRamEncoder *encoder, int kbs) {
