@@ -75,6 +75,9 @@ pub struct EncodeCalls {
     pub test: TestEncodeCall,
     pub set_bitrate: IVICall,
     pub set_framerate: IVICall,
+    /// Force the next encoded frame to be an IDR. Only the FFmpeg VRAM
+    /// backend implements this; native NV/AMF/MFX encoders set it to `None`.
+    pub set_force_idr: Option<IVCall>,
 }
 pub struct DecodeCalls {
     pub new: NewDecoderCall,

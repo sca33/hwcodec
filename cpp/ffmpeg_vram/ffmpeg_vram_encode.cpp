@@ -78,6 +78,9 @@ public:
   int32_t gop_;
   RateControl rc_;
   Quality quality_;
+  // When set, the next do_encode() forces an IDR (pict_type = I) and clears
+  // the flag. Used for on-demand keyframe recovery (PLI / decoder refresh).
+  bool force_idr_ = false;
 
   const int align_ = 0;
   const bool full_range_ = false;
@@ -266,6 +269,11 @@ public:
     return 0;
   }
 
+  int set_force_idr() {
+    force_idr_ = true;
+    return 0;
+  }
+
 private:
   bool choose_encoder(AdapterVendor vendor) {
     if (ADAPTER_VENDOR_NVIDIA == vendor) {
@@ -321,7 +329,17 @@ private:
     bool encoded = false;
     bool eagain = false;
     frame_->pts = ms;
-    if ((ret = avcodec_send_frame(c_, frame_)) < 0) {
+    // Force an IDR for this frame if requested. h264_nvenc/h264_amf/h264_qsv
+    // (and their HEVC variants) honour AV_PICTURE_TYPE_I as a keyframe request.
+    // The flag is one-shot: reset before sending so a failed send doesn't leave
+    // it stuck, and restore pict_type to NONE so subsequent frames stay delta.
+    if (force_idr_) {
+      force_idr_ = false;
+      frame_->pict_type = AV_PICTURE_TYPE_I;
+    }
+    ret = avcodec_send_frame(c_, frame_);
+    frame_->pict_type = AV_PICTURE_TYPE_NONE;
+    if (ret < 0) {
       LOG_ERROR(std::string("avcodec_send_frame failed, ret = ") + av_err2str(ret));
       return ret;
     }
@@ -502,6 +520,15 @@ int ffmpeg_vram_set_framerate(FFmpegVRamEncoder *encoder, int32_t framerate) {
     return encoder->set_framerate(framerate);
   } catch (const std::exception &e) {
     LOG_ERROR(std::string("ffmpeg_vram_set_framerate failed, ") + std::string(e.what()));
+  }
+  return -1;
+}
+
+int ffmpeg_vram_set_force_idr(FFmpegVRamEncoder *encoder) {
+  try {
+    return encoder->set_force_idr();
+  } catch (const std::exception &e) {
+    LOG_ERROR(std::string("ffmpeg_vram_set_force_idr failed, ") + std::string(e.what()));
   }
   return -1;
 }
