@@ -106,6 +106,23 @@ impl Encoder {
             }
         }
     }
+
+    /// Request that the next [`encode`](Self::encode) emit a forced IDR.
+    ///
+    /// Returns `Err(())` when the active backend does not support forced
+    /// keyframes (only the FFmpeg VRAM backend does); the caller is expected
+    /// to fall back to a cached-keyframe injection in that case.
+    pub fn set_force_idr(&mut self) -> Result<(), ()> {
+        match self.calls.set_force_idr {
+            Some(call) => unsafe {
+                match call(self.codec) {
+                    0 => Ok(()),
+                    _ => Err(()),
+                }
+            },
+            None => Err(()),
+        }
+    }
 }
 
 impl Drop for Encoder {

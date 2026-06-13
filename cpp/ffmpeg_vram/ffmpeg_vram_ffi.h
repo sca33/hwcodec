@@ -29,5 +29,8 @@ int ffmpeg_vram_test_encode(int64_t *outLuids, int32_t *outVendors, int32_t maxD
                             const int64_t *excludedLuids, const int32_t *excludeFormats, int32_t excludeCount);
 int ffmpeg_vram_set_bitrate(void *encoder, int32_t kbs);
 int ffmpeg_vram_set_framerate(void *encoder, int32_t framerate);
+// Request that the next encoded frame be a forced IDR (instantaneous decoder
+// refresh). The flag is consumed by the next ffmpeg_vram_encode call.
+int ffmpeg_vram_set_force_idr(void *encoder);
 
 #endif // FFMPEG_VRAM_FFI_H
