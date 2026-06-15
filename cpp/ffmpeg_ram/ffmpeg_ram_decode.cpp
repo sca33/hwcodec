@@ -212,7 +212,13 @@ private:
       out_++;
       LOG_DEBUG(std::string("delay DO: in:") + in_ + " out:" + out_);
 #endif
-#if FF_API_FRAME_KEY
+      // FFmpeg 7.x removed AVFrame::key_frame in favour of the
+      // AV_FRAME_FLAG_KEY flag (added in 6.1). The old FF_API_FRAME_KEY guard
+      // breaks once key_frame is fully removed, because FF_API_FRAME_KEY also
+      // disappears (evaluates to 0) and the #else then references the deleted
+      // field. Gate on the flag's presence instead: prefer the flag when
+      // available, fall back to the legacy field only on pre-6.1 FFmpeg.
+#ifdef AV_FRAME_FLAG_KEY
       int key_frame = frame_->flags & AV_FRAME_FLAG_KEY;
 #else
       int key_frame = frame_->key_frame;
