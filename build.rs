@@ -28,7 +28,7 @@ fn build_common(builder: &mut Build) {
     bindgen::builder()
         .header(common_dir.join("common.h").to_string_lossy().to_string())
         .header(common_dir.join("callback.h").to_string_lossy().to_string())
-        .rustified_enum("*")
+        .rustified_enum(".*")
         .parse_callbacks(Box::new(CommonCallbacks))
         .generate()
         .unwrap()
@@ -81,9 +81,9 @@ fn build_common(builder: &mut Build) {
 #[derive(Debug)]
 struct CommonCallbacks;
 impl bindgen::callbacks::ParseCallbacks for CommonCallbacks {
-    fn add_derives(&self, name: &str) -> Vec<String> {
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo) -> Vec<String> {
         let names = vec!["DataFormat", "SurfaceFormat", "API"];
-        if names.contains(&name) {
+        if names.contains(&info.name) {
             vec!["Serialize", "Deserialize"]
                 .drain(..)
                 .map(|s| s.to_string())
@@ -217,7 +217,7 @@ mod ffmpeg {
             .to_string();
         bindgen::builder()
             .header(ffi_header)
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("ffmpeg_ffi.rs"))
@@ -233,7 +233,7 @@ mod ffmpeg {
             .to_string();
         bindgen::builder()
             .header(ffi_header)
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("ffmpeg_ram_ffi.rs"))
@@ -254,7 +254,7 @@ mod ffmpeg {
             .to_string();
         bindgen::builder()
             .header(ffi_header)
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("ffmpeg_vram_ffi.rs"))
@@ -271,7 +271,7 @@ mod ffmpeg {
         let mux_header = mux_dir.join("mux_ffi.h").to_string_lossy().to_string();
         bindgen::builder()
             .header(mux_header)
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("mux_ffi.rs"))
@@ -301,7 +301,7 @@ mod sdk {
         println!("cargo:rerun-if-changed={}", externals_dir.display());
         bindgen::builder()
             .header(&nv_dir.join("nv_ffi.h").to_string_lossy().to_string())
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("nv_ffi.rs"))
@@ -367,7 +367,7 @@ mod sdk {
         println!("cargo:rerun-if-changed={}", externals_dir.display());
         bindgen::builder()
             .header(amf_dir.join("amf_ffi.h").to_string_lossy().to_string())
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("amf_ffi.rs"))
@@ -409,7 +409,7 @@ mod sdk {
         println!("cargo:rerun-if-changed={}", externals_dir.display());
         bindgen::builder()
             .header(&mfx_dir.join("mfx_ffi.h").to_string_lossy().to_string())
-            .rustified_enum("*")
+            .rustified_enum(".*")
             .generate()
             .unwrap()
             .write_to_file(Path::new(&env::var_os("OUT_DIR").unwrap()).join("mfx_ffi.rs"))

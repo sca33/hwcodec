@@ -12,6 +12,19 @@ extern "C" {
 
 #include "common.h"
 
+// FFmpeg 7.x removed the FF_PROFILE_* aliases in favour of AV_PROFILE_*.
+// hwcodec still references the FF_PROFILE_* names, so define the old names
+// from the new ones when they are missing. This keeps the source building
+// against both old (<7) and new (>=7) FFmpeg headers without touching call
+// sites. AV_PROFILE_* is provided transitively via <libavcodec/avcodec.h>
+// (libavcodec/defs.h), included by "util.h".
+#ifndef FF_PROFILE_H264_HIGH
+#define FF_PROFILE_H264_HIGH AV_PROFILE_H264_HIGH
+#endif
+#ifndef FF_PROFILE_HEVC_MAIN
+#define FF_PROFILE_HEVC_MAIN AV_PROFILE_HEVC_MAIN
+#endif
+
 #define LOG_MODULE "UTIL"
 #include "log.h"
 
