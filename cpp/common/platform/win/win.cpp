@@ -415,9 +415,16 @@ bool NativeDevice::Process(ID3D11Texture2D *in, ID3D11Texture2D *out, int width,
     if (video_processor_) {
       video_processor_.Reset();
     }
+    // The cached views are bound to the enumerator being torn down, so drop
+    // them too; they are rebuilt below against the fresh enumerator.
+    cached_input_view_.Reset();
+    cached_input_view_src_ = nullptr;
+    cached_output_view_.Reset();
+    cached_output_view_dst_ = nullptr;
   }
   memcpy(&last_content_desc_, &content_desc, sizeof(content_desc));
 
+  bool processor_recreated = false;
   if (!video_processor_enumerator_ || !video_processor_) {
     HRB(video_device_->CreateVideoProcessorEnumerator(
         &content_desc, video_processor_enumerator_.ReleaseAndGetAddressOf()));
@@ -429,50 +436,75 @@ bool NativeDevice::Process(ID3D11Texture2D *in, ID3D11Texture2D *out, int width,
         video_processor_.Get(), 0, FALSE);
     video_context_->VideoProcessorSetStreamFrameFormat(
         video_processor_.Get(), 0, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
+    processor_recreated = true;
   }
 
   // https://chromium.googlesource.com/chromium/src/media/+/refs/heads/main/gpu/windows/d3d11_video_processor_proxy.cc#138
   // https://chromium.googlesource.com/chromium/src/+/a30440e4cfc7016d4f75a4e108025667e130b78b/media/gpu/windows/dxva_video_decode_accelerator_win.cc
 
-  video_context1_->VideoProcessorSetStreamColorSpace1(video_processor_.Get(), 0,
-                                                      colorSpace_in);
-  video_context1_->VideoProcessorSetOutputColorSpace1(video_processor_.Get(),
-                                                      colorSpace_out);
+  // Colorspace and rects are processor state that persists across Blt calls, so
+  // re-apply them only when the processor was just (re)created or the values
+  // actually changed — not once per frame.
+  if (processor_recreated || colorSpace_in != last_colorspace_in_ ||
+      colorSpace_out != last_colorspace_out_) {
+    video_context1_->VideoProcessorSetStreamColorSpace1(video_processor_.Get(),
+                                                        0, colorSpace_in);
+    video_context1_->VideoProcessorSetOutputColorSpace1(video_processor_.Get(),
+                                                        colorSpace_out);
+    last_colorspace_in_ = colorSpace_in;
+    last_colorspace_out_ = colorSpace_out;
+  }
 
-  RECT rect = {0};
-  rect.right = width;
-  rect.bottom = height;
-  video_context_->VideoProcessorSetStreamSourceRect(video_processor_.Get(), 0,
-                                                    true, &rect);
-  video_context1_->VideoProcessorSetStreamDestRect(video_processor_.Get(), 0,
-                                                   true, &rect);
+  if (processor_recreated || width != last_rect_width_ ||
+      height != last_rect_height_) {
+    RECT rect = {0};
+    rect.right = width;
+    rect.bottom = height;
+    video_context_->VideoProcessorSetStreamSourceRect(video_processor_.Get(), 0,
+                                                      true, &rect);
+    video_context1_->VideoProcessorSetStreamDestRect(video_processor_.Get(), 0,
+                                                     true, &rect);
+    last_rect_width_ = width;
+    last_rect_height_ = height;
+  }
 
-  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC InputViewDesc;
-  ZeroMemory(&InputViewDesc, sizeof(InputViewDesc));
-  InputViewDesc.FourCC = 0;
-  InputViewDesc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
-  InputViewDesc.Texture2D.MipSlice = 0;
-  InputViewDesc.Texture2D.ArraySlice = arraySlice;
-  ComPtr<ID3D11VideoProcessorInputView> inputView = nullptr;
-  HRB(video_device_->CreateVideoProcessorInputView(
-      in, video_processor_enumerator_.Get(), &InputViewDesc,
-      inputView.ReleaseAndGetAddressOf()));
+  // Input view: reuse the cached one while the source texture (and array slice)
+  // is unchanged. A null cache (first use / post-recreate) forces creation.
+  if (!cached_input_view_ || cached_input_view_src_ != in ||
+      cached_input_view_slice_ != arraySlice) {
+    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC InputViewDesc;
+    ZeroMemory(&InputViewDesc, sizeof(InputViewDesc));
+    InputViewDesc.FourCC = 0;
+    InputViewDesc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+    InputViewDesc.Texture2D.MipSlice = 0;
+    InputViewDesc.Texture2D.ArraySlice = arraySlice;
+    HRB(video_device_->CreateVideoProcessorInputView(
+        in, video_processor_enumerator_.Get(), &InputViewDesc,
+        cached_input_view_.ReleaseAndGetAddressOf()));
+    cached_input_view_src_ = in;
+    cached_input_view_slice_ = arraySlice;
+  }
 
-  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC OutputViewDesc;
-  ZeroMemory(&OutputViewDesc, sizeof(OutputViewDesc));
-  OutputViewDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
-  OutputViewDesc.Texture2D.MipSlice = 0;
-  ComPtr<ID3D11VideoProcessorOutputView> outputView = nullptr;
-  video_device_->CreateVideoProcessorOutputView(
-      out, video_processor_enumerator_.Get(), &OutputViewDesc,
-      outputView.ReleaseAndGetAddressOf());
+  // Output view: reuse the cached one while the destination texture is
+  // unchanged. Error handling stays on the Blt below (as before), so a failed
+  // create leaves cached_output_view_ null and the next frame retries.
+  if (!cached_output_view_ || cached_output_view_dst_ != out) {
+    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC OutputViewDesc;
+    ZeroMemory(&OutputViewDesc, sizeof(OutputViewDesc));
+    OutputViewDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
+    OutputViewDesc.Texture2D.MipSlice = 0;
+    video_device_->CreateVideoProcessorOutputView(
+        out, video_processor_enumerator_.Get(), &OutputViewDesc,
+        cached_output_view_.ReleaseAndGetAddressOf());
+    cached_output_view_dst_ = out;
+  }
 
   D3D11_VIDEO_PROCESSOR_STREAM StreamData;
   ZeroMemory(&StreamData, sizeof(StreamData));
   StreamData.Enable = TRUE;
-  StreamData.pInputSurface = inputView.Get();
-  HRB(video_context_->VideoProcessorBlt(video_processor_.Get(),
-                                        outputView.Get(), 0, 1, &StreamData));
+  StreamData.pInputSurface = cached_input_view_.Get();
+  HRB(video_context_->VideoProcessorBlt(
+      video_processor_.Get(), cached_output_view_.Get(), 0, 1, &StreamData));
 
   return true;
 }

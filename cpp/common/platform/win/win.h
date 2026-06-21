@@ -83,6 +83,25 @@ public:
   ComPtr<ID3D11VideoProcessor> video_processor_ = nullptr;
   D3D11_VIDEO_PROCESSOR_CONTENT_DESC last_content_desc_ = {};
 
+  // Cached VideoProcessor input/output views for Process(), keyed by
+  // source/destination COM-pointer identity (and input array slice), mirroring
+  // the host-side GpuScaler view cache. Avoids recreating both views on every
+  // frame in the 60fps BGRA->NV12 encode path. Invalidated whenever the
+  // enumerator/processor is recreated on a content-desc change (the views are
+  // bound to the enumerator). Pointer identity is safe because the in/out
+  // textures live for the whole encoder session.
+  ComPtr<ID3D11VideoProcessorInputView> cached_input_view_ = nullptr;
+  ID3D11Texture2D *cached_input_view_src_ = nullptr;
+  int cached_input_view_slice_ = -1;
+  ComPtr<ID3D11VideoProcessorOutputView> cached_output_view_ = nullptr;
+  ID3D11Texture2D *cached_output_view_dst_ = nullptr;
+  // Last per-frame processor state, so redundant re-application is skipped while
+  // the processor is reused (set values persist on the processor object).
+  DXGI_COLOR_SPACE_TYPE last_colorspace_in_ = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+  DXGI_COLOR_SPACE_TYPE last_colorspace_out_ = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+  int last_rect_width_ = 0;
+  int last_rect_height_ = 0;
+
   ComPtr<ID3D11RenderTargetView> RTV_ = NULL;
   ComPtr<ID3D11ShaderResourceView> SRV_[2] = {NULL, NULL};
   ComPtr<ID3D11VertexShader> vertexShader_ = NULL;
